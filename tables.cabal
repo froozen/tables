@@ -1,0 +1,17 @@
+Name:           tables
+Version:        1.0
+Synopsis:       A primitive MD5 rainbow table generator
+Author:         fro_ozen
+Maintainer:     fro_ozen@gmx.de
+Cabal-Version:  >= 1.2
+Description:
+    tables generates a rainbow table from a wordlist and hashcat rules. The table
+    is saved as a directory structure on disk.
+    tables is also able to perform lookup operations in these tables.
+
+Executable tables
+    Build-Depends:   base >= 2.0, cryptohash >= 0.11.6, bytestring >= 0.10.4.0, filepath >=1.3.0.2,
+                     directory >= 1.2.1.0
+    Main-Is:         Main.hs
+    Hs-Source-Dirs:  src
+    Other-Modules:   Hashing, Table, Rules
