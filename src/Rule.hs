@@ -1,4 +1,16 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{- |
+ Module: Rule
+
+Rules are Arrow types, used to represent Hashcat String transformation rules.
+
+I decided to use Arrows because they have nice tuple handling (first and second),
+which makes it easy to creat rules that don't even know about the Memory (using
+liftR).
+
+Another benefit is, that they are easily chainable (using >>>) which made
+implementing the Monoid instance easy.
+-}
 
 module Rule
     ( Rule

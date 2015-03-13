@@ -26,6 +26,8 @@ main = do
 
         _ -> putStrLn "Usage: tables [create/lookup]"
 
+-- | Implementation of the create command
+--   Creates a table in a specified dir, using a rule-file and a wordlist
 create :: FilePath -> FilePath -> FilePath -> IO ()
 create rulePath wordlistPath tableDir = do
     tableDirExists <- doesDirectoryExist tableDir
@@ -39,6 +41,7 @@ create rulePath wordlistPath tableDir = do
         return ()
     else putStrLn ("Invalid table-dir: " ++ tableDir)
 
+-- | Parses the rules from a rule-file
 loadRules :: FilePath -> IO [Rule]
 loadRules path = do
     exists <- doesFileExist path
@@ -56,6 +59,7 @@ loadRules path = do
         putStrLn ("Invalid rule path: " ++ path)
         return []
 
+-- | Extracts the words from a word-file
 loadWordlist :: FilePath -> IO [String]
 loadWordlist path = do
     exists <- doesFileExist path
@@ -68,12 +72,19 @@ loadWordlist path = do
         putStrLn ("Invalid wordlist path: " ++ path)
         return []
 
+-- | Checks wether a line in a rule file is valid, meaning it's neither
+--   a comment, nor empty
 validLine :: String -> Bool
 validLine s = not ("#" `isPrefixOf` s || null s)
 
+-- | Turn DOS linebreaks into UNIX linebreaks.
+--   Needed, because a lot of files used for password cracking come
+--   with DOS linebreaks.
 unixify :: String -> String
 unixify = filter (/= '\r')
 
+-- | Implements the lookup command, which looks up the hashes in a specified file
+--   in a specified table
 lookUp :: FilePath -> FilePath -> IO ()
 lookUp hashesPath tableDir = do
     hashesExist <- doesFileExist hashesPath
