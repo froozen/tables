@@ -11,7 +11,7 @@ Description:
 
 Executable tables
     Build-Depends:   base >= 2.0, cryptohash >= 0.11.6, bytestring >= 0.10.4.0, filepath >=1.3.0.2,
-                     directory >= 1.2.1.0
+                     directory >= 1.2.1.0, mtl >= 2.2.1, transformers >= 0.4.2.0
     Main-Is:         Main.hs
     Hs-Source-Dirs:  src
-    Other-Modules:   Hashing, Table, Rules
+    Other-Modules:   Hashing, Table, Rules, RuleImplementations, Rule

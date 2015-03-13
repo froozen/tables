@@ -5,8 +5,11 @@ module Main where
 import System.Directory (doesFileExist, doesDirectoryExist)
 import System.Environment (getArgs)
 import Control.Applicative ((<*>))
-import Control.Monad (mapM, forM)
+import Control.Monad (mapM, forM, forM_)
 import Data.List (isPrefixOf)
+import Control.Arrow (left)
+import Data.Either (rights)
+import Data.Maybe (catMaybes)
 
 import Rules
 import Hashing
@@ -30,7 +33,7 @@ create rulePath wordlistPath tableDir = do
     then do
         rules <- loadRules rulePath
         words <-  loadWordlist wordlistPath
-        let processed = rules <*> words
+        let processed = catMaybes $ [applyRule rule word | rule <- rules, word <- words]
         let hashed = map pair processed
         mapM (createTableEntry tableDir) hashed
         return ()
@@ -44,7 +47,11 @@ loadRules path = do
         contents <- readFile path
         let ruleLines = filter validLine . lines . unixify $ contents
         let rules = map parseRule ruleLines
-        return rules
+        forM_ rules $ \rule -> do
+            case rule of
+                Left err -> putStrLn $ "Error :" ++ err
+                Right _ -> return ()
+        return . rights $ rules
     else do
         putStrLn ("Invalid rule path: " ++ path)
         return []
