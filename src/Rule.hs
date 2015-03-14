@@ -1,69 +1,56 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, FlexibleInstances #-}
 {- |
- Module: Rule
+Module: Rule
 
-Rules are Arrow types, used to represent Hashcat String transformation rules.
+Rules are a State RuleState monad below a few monad transformers.
 
-I decided to use Arrows because they have nice tuple handling (first and second),
-which makes it easy to creat rules that don't even know about the Memory (using
-liftR).
+ReaderT allows acces to the original plain supplied to the rule.
 
-Another benefit is, that they are easily chainable (using >>>) which made
-implementing the Monoid instance easy.
+MaybeT allows for failures and makes it easy to implement the rejection functions.
 -}
 
 module Rule
     ( Rule
-    , Memory(..)
+    , RuleState(..)
     , applyRule
     , liftR
-    , liftMemR
     , guardR
-    , saveMem
     ) where
 
-import Control.Arrow
-import Control.Category
+import Control.Monad
+import Control.Applicative (Applicative, Alternative)
+import Control.Monad.State
+import Control.Monad.Reader
+import Control.Monad.Trans.Maybe
 import Data.Monoid
--- prevent clashes with Control.Category
-import Prelude hiding ((.), id)
+
+-- | Type used with State in Rule
+data RuleState = RuleState {
+      stored :: String
+    , result :: String
+    } deriving (Show, Eq)
 
 -- | Representation of a Rule
-type Rule = Kleisli Maybe (String, Memory) (String, Memory)
-
--- | Representation of the memory
-data Memory = Memory {
-      origin :: String
-    , stored :: String
-    } deriving (Show, Eq)
+newtype Rule a = Rule
+    { runRule :: MaybeT (ReaderT String (State RuleState)) a }
+    deriving (Monad, MonadState RuleState, MonadReader String,
+              MonadPlus, Functor, Applicative, Alternative)
 
 -- I made Rule an instance of Monoid, so I can use it
 -- with a Writer.
-instance Monoid Rule where
-    mempty        = liftR $ id
-    a `mappend` b = a >>> b
+instance Monoid (Rule ()) where
+    mempty  = liftR id
+    mappend = (>>)
 
 -- | Apply a rule to a String
-applyRule :: Rule -> String -> Maybe String
-applyRule r = runKleisli $ initiate >>> r >>> takeFirst
-    where initiate  = arr $ \s -> (s, Memory s s)
-          takeFirst = arr fst
+applyRule :: Rule a -> String -> Maybe String
+applyRule r s = evalState (runReaderT (runMaybeT . runRule $ r >> extract) s) $ RuleState s s
+    where extract = gets stored
 
 -- | Lift a (String -> String) function to a Rule
-liftR :: (String -> String) -> Rule
-liftR f = first $ Kleisli (Just . f)
-
--- | Lift a ((String, Memory) -> (String, Memory)) function to a Rule
-liftMemR :: ((String, Memory) -> (String, Memory)) -> Rule
-liftMemR = arr
+liftR :: (String -> String) -> Rule ()
+liftR f = modify $ \s -> s { result = f. result $ s }
 
 -- | The equivalent of guard
-guardR :: (String -> Bool) -> Rule
-guardR p = Kleisli $ f
-    where f (s, mem) = if p s
-                       then Just (s, mem)
-                       else Nothing
-
--- | Save the String into memory
-saveMem :: Rule
-saveMem = liftMemR $ \(a, mem) -> (origin mem, mem { stored = a })
+guardR :: (RuleState -> Bool) -> Rule ()
+guardR r = guard =<< (gets r)

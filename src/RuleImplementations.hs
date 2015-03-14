@@ -10,6 +10,9 @@ module RuleImplementations where
 import Data.Word (Word8(..))
 import Data.Char
 import Data.List
+import Control.Monad.State (modify, put, get, gets)
+import Control.Monad.Reader (ask)
+import Control.Monad ((=<<), guard)
 import Rule
 
 -- | Toggles a Char's case
@@ -127,18 +130,25 @@ safeInit (x:[]) = []
 safeInit (x:xs) = x:safeInit xs
 
 -- | Appends the String saved in Memory
-appendMem :: Rule
-appendMem = liftMemR $ \(a, mem) -> (a ++ stored mem, mem)
+appendMem :: Rule ()
+appendMem = modify $ \s -> s { result = result s ++ stored s }
 
 -- | Prepends the String saved in Memory
-prependMem :: Rule
-prependMem = liftMemR $ \(a, mem) -> (stored mem ++ a, mem)
+prependMem :: Rule ()
+prependMem = modify $ \s -> s { result = stored s ++ result s }
 
 -- | Extracts a specified range of the String saved in Memory and inserts
 --   it at a specified index
-extractMem :: (Integral a) => a -> a -> a -> Rule
-extractMem n m i = liftMemR $ \(a, mem) -> (extract (stored mem) a, mem)
+extractMem :: (Integral a) => a -> a -> a -> Rule ()
+extractMem n m i = modify $ \s -> s { result = extract (stored s) (result s) }
     where extract mem s = begin s ++ inserted mem ++ end s
           begin s = genericTake i s
           inserted mem = genericTake m . genericDrop n $ mem
           end s = genericDrop i s
+
+-- | Saves the current result to memory and resets the result
+saveMem :: Rule ()
+saveMem = do
+    s <- get
+    original <- ask
+    put s { stored = result s, result = original }

@@ -42,7 +42,7 @@ create rulePath wordlistPath tableDir = do
     else putStrLn ("Invalid table-dir: " ++ tableDir)
 
 -- | Parses the rules from a rule-file
-loadRules :: FilePath -> IO [Rule]
+loadRules :: FilePath -> IO [Rule ()]
 loadRules path = do
     exists <- doesFileExist path
     if exists

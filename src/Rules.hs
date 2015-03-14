@@ -27,11 +27,11 @@ import Rule
 import RuleImplementations
 
 -- | Monad used to do the Rule Parsing
-type RuleParser = ExceptT String (Writer Rule)
+type RuleParser = ExceptT String (Writer (Rule ()))
 
 -- | Parse a String into a Rule
 --   Uses Either to account for malformed rules and other errors
-parseRule :: String -> Either String Rule
+parseRule :: String -> Either String (Rule ())
 parseRule s = case fst parsed of
         Left err -> Left err
         Right _  -> Right $ snd parsed
@@ -97,17 +97,18 @@ doParse ('6':rs) = tell prependMem >> doParse rs
 doParse ('M':rs) = tell saveMem >> doParse rs
 
 -- Rejection functions
-doParse ('<':n:rs) = tell (guardR $ \s -> length s <= toDigit n) >> doParse rs
-doParse ('>':n:rs) = tell (guardR $ \s -> length s >= toDigit n) >> doParse rs
-doParse ('!':c:rs) = tell (guardR (c `notElem`)) >> doParse rs
-doParse ('/':c:rs) = tell (guardR (c `elem`)) >> doParse rs
-doParse ('(':c:rs) = tell (guardR $ \s -> head s == c) >> doParse rs
-doParse (')':c:rs) = tell (guardR $ \s -> last s == c) >> doParse rs
+doParse ('<':n:rs) = tell (guardR $ \s -> (length . result $ s) <= toDigit n) >> doParse rs
+doParse ('>':n:rs) = tell (guardR $ \s -> (length . result $ s) >= toDigit n) >> doParse rs
+doParse ('!':c:rs) = tell (guardR (notElem c . result)) >> doParse rs
+doParse ('/':c:rs) = tell (guardR (elem c . result)) >> doParse rs
+doParse ('(':c:rs) = tell (guardR $ \s -> (head . result $ s) == c) >> doParse rs
+doParse (')':c:rs) = tell (guardR $ \s -> (last . result $ s) == c) >> doParse rs
 doParse ('=':n:c:rs) = do
-    tell (guardR $ \s -> length s >= toDigit n && s !! (toDigit n) == c)
+    tell (guardR $ \s -> (length . result $ s) >= toDigit n
+                          && (result s) !! (toDigit n) == c)
     doParse rs
 doParse ('%':n:c:rs) = do
-    tell (guardR $ \s -> (length . filter (==c) $ s) < (toDigit n))
+    tell (guardR $ \s -> (length . filter (==c) . result $ s) < (toDigit n))
     doParse rs
 
 doParse [] = return ()
