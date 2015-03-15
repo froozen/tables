@@ -2,7 +2,7 @@
 Module: Rules
 
 This module parses Hashcat Rules, as specified on the Hashcat website:
-https://hashcat.net/wiki/doku.php?id=rule_based_attack
+<https://hashcat.net/wiki/doku.php?id=rule_based_attack>
 
 Rules acts as the interface for the Rule module by reexporting Rule and
 applyRule and implements the Rule Parsing via parseRule.
@@ -20,8 +20,7 @@ module Rules
 
 import Control.Monad.Trans.Except
 import Control.Monad.Writer
-import Data.Char
-import Data.Bits
+import Data.Char (ord)
 
 import Rule
 import RuleImplementations
@@ -37,85 +36,83 @@ parseRule s = case fst parsed of
         Right _  -> Right $ snd parsed
     where parsed = runWriter (runExceptT $ doParse s)
 
--- | Helper function for parsing simple (String -> String) rules
-contParse :: String -> (String -> String) -> RuleParser ()
-contParse s f = tell (liftR f) >> doParse s
+-- | Helper function for parsing rules
+contParse :: String -> Rule () -> RuleParser ()
+contParse s r = tell r >> doParse s
 
 -- | The actual parsing function
 doParse :: String -> RuleParser ()
 doParse (' ':rs) = doParse rs
 
 -- Argumentless functions
-doParse (':':rs) = contParse rs $ id
-doParse ('l':rs) = contParse rs $ fmap toLower
-doParse ('u':rs) = contParse rs $ fmap toUpper
-doParse ('t':rs) = contParse rs $ fmap toggle
-doParse ('c':rs) = contParse rs $ capitalize
-doParse ('r':rs) = contParse rs $ reverse
-doParse ('d':rs) = contParse rs $ (\s -> s ++ s)
-doParse ('f':rs) = contParse rs $ (\s -> s ++ reverse s)
-doParse ('{':rs) = contParse rs $ rotateLeft
-doParse ('}':rs) = contParse rs $ rotateRight
-doParse ('[':rs) = contParse rs $ safeTail
-doParse (']':rs) = contParse rs $ safeInit
-doParse ('q':rs) = contParse rs $ (\s -> concat . map (replicate 2) $ s)
-doParse ('C':rs) = doParse ('c':'t':rs)
-doParse ('k':rs) = contParse rs $ swap 0 1
-doParse ('K':rs) = contParse rs $ (\s -> swap (length s - 2) (length s - 1) s)
-doParse ('E':rs) = contParse rs $ title
+doParse (':':rs) = contParse rs nothingR
+doParse ('l':rs) = contParse rs lowercaseR
+doParse ('u':rs) = contParse rs uppercaseR
+doParse ('t':rs) = contParse rs toggleCaseR
+doParse ('c':rs) = contParse rs capitalizeR
+doParse ('r':rs) = contParse rs reverseR
+doParse ('d':rs) = contParse rs duplicateR
+doParse ('f':rs) = contParse rs reflectR
+doParse ('{':rs) = contParse rs rotateLeftR
+doParse ('}':rs) = contParse rs rotateRightR
+doParse ('[':rs) = contParse rs truncateLeftR
+doParse (']':rs) = contParse rs truncateRightR
+doParse ('q':rs) = contParse rs duplicateAllR
+doParse ('C':rs) = contParse rs capitalizeR
+doParse ('k':rs) = contParse rs swapFrontR
+doParse ('K':rs) = contParse rs swapBackR
+doParse ('E':rs) = contParse rs titleR
 
 -- One argument functions
-doParse ('T':n:rs)  = contParse rs $ applyAt (toDigit n) toggle
-doParse ('p':n:rs)  = contParse rs $ concat . replicate (toDigit n)
-doParse ('D':n:rs)  = contParse rs $ remove (toDigit n)
-doParse ('z':n:rs)  = contParse rs $ duplicateFirst (toDigit n)
-doParse ('Z':n:rs)  = contParse rs $ duplicateLast (toDigit n)
-doParse ('\'':n:rs) = contParse rs $ take (toDigit n)
-doParse ('@':c:rs)  = contParse rs $ (\s -> filter (== c) s)
-doParse ('$':c:rs)  = contParse rs $ (\s -> s ++ [c])
-doParse ('^':c:rs)  = contParse rs $ (c :)
-doParse ('R':n:rs)  = contParse rs $ applyAt (toDigit n) $ modifyWord8 (`shift` (-1))
-doParse ('L':n:rs)  = contParse rs $ applyAt (toDigit n) $ modifyWord8 (`shift` 1)
-doParse ('+':n:rs)  = contParse rs $ applyAt (toDigit n) $ modifyWord8 (+1)
-doParse ('-':n:rs)  = contParse rs $ applyAt (toDigit n) $ modifyWord8 (+ (-1))
-doParse ('.':n:rs)  = contParse rs $ snatch (toDigit n) 1
-doParse (',':n:rs)  = contParse rs $ snatch (toDigit n) (-1)
-doParse ('y':n:rs)  = contParse rs $ (\s -> (take (toDigit n) s) ++ s)
-doParse ('Y':n:rs)  = contParse rs $ (\s -> s ++ (reverse . take (toDigit n) . reverse $ s))
+doParse ('T':n:rs)  = contParse rs $ toggleR (toDigit n)
+doParse ('p':n:rs)  = contParse rs $ duplicateNR (toDigit n)
+doParse ('D':n:rs)  = contParse rs $ deleteNR (toDigit n)
+doParse ('z':n:rs)  = contParse rs $ duplicateFirstR (toDigit n)
+doParse ('Z':n:rs)  = contParse rs $ duplicateLastR (toDigit n)
+doParse ('\'':n:rs) = contParse rs $ truncateNR (toDigit n)
+doParse ('@':c:rs)  = contParse rs $ purgeR c
+doParse ('$':c:rs)  = contParse rs $ appendCharacterR c
+doParse ('^':c:rs)  = contParse rs $ prependCharacterR c
+doParse ('L':n:rs)  = contParse rs $ bitShiftLeftR (toDigit n)
+doParse ('R':n:rs)  = contParse rs $ bitShiftRightR (toDigit n)
+doParse ('+':n:rs)  = contParse rs $ asciiIncrementR (toDigit n)
+doParse ('-':n:rs)  = contParse rs $ asciiDecrementR (toDigit n)
+doParse ('.':n:rs)  = contParse rs $ replaceNPlusR (toDigit n)
+doParse (',':n:rs)  = contParse rs $ replaceNMinusR (toDigit n)
+doParse ('y':n:rs)  = contParse rs $ duplicateBlockFrontR (toDigit n)
+doParse ('Y':n:rs)  = contParse rs $ duplicateBlockBackR (toDigit n)
 
 -- Two argument functions
-doParse ('x':n:m:rs) = contParse rs $ removeRange (toDigit n) (toDigit m)
-doParse ('i':n:c:rs) = contParse rs $ insertAt (toDigit n) (c)
-doParse ('o':n:c:rs) = contParse rs $ applyAt (toDigit n) (const c)
-doParse ('s':c:r:rs) = contParse rs $ replace c r
-doParse ('*':c:s:rs) = contParse rs $ twoWayReplace c s
+doParse ('x':n:m:rs) = contParse rs $ deleteRangeR (toDigit n) (toDigit m)
+doParse ('i':n:c:rs) = contParse rs $ insertR (toDigit n) c
+doParse ('o':n:c:rs) = contParse rs $ overwriteNR (toDigit n) c
+doParse ('s':c:r:rs) = contParse rs $ replaceR c r
+doParse ('*':x:y:rs) = contParse rs $ swapNR (toDigit x) (toDigit y)
 
 -- Memory functions
-doParse ('X':n:m:i:rs) = tell (extractMem (toDigit n) (toDigit m) (toDigit i)) >> doParse rs
-doParse ('4':rs) = tell appendMem >> doParse rs
-doParse ('6':rs) = tell prependMem >> doParse rs
-doParse ('M':rs) = tell saveMem >> doParse rs
+doParse ('X':n:m:i:rs) = contParse rs $ extractMemoryR (toDigit n) (toDigit m) (toDigit i)
+doParse ('4':rs)       = contParse rs $ appendMemoryR
+doParse ('6':rs)       = contParse rs $ prependMemoryR
+doParse ('M':rs)       = contParse rs $ memorizeR
 
 -- Rejection functions
-doParse ('<':n:rs) = tell (guardR $ \s -> (length . result $ s) <= toDigit n) >> doParse rs
-doParse ('>':n:rs) = tell (guardR $ \s -> (length . result $ s) >= toDigit n) >> doParse rs
-doParse ('!':c:rs) = tell (guardR (notElem c . result)) >> doParse rs
-doParse ('/':c:rs) = tell (guardR (elem c . result)) >> doParse rs
-doParse ('(':c:rs) = tell (guardR $ \s -> (head . result $ s) == c) >> doParse rs
-doParse (')':c:rs) = tell (guardR $ \s -> (last . result $ s) == c) >> doParse rs
-doParse ('=':n:c:rs) = do
-    tell (guardR $ \s -> (length . result $ s) >= toDigit n
-                          && (result s) !! (toDigit n) == c)
-    doParse rs
-doParse ('%':n:c:rs) = do
-    tell (guardR $ \s -> (length . filter (==c) . result $ s) < (toDigit n))
-    doParse rs
+doParse ('<':n:rs)   = contParse rs $ rejectLessR (toDigit n)
+doParse ('>':n:rs)   = contParse rs $ rejectGreaterR (toDigit n)
+doParse ('!':c:rs)   = contParse rs $ rejectContainR c
+doParse ('/':c:rs)   = contParse rs $ rejectNotContainR c
+doParse ('(':c:rs)   = contParse rs $ rejectEqualFirstR c
+doParse (')':c:rs)   = contParse rs $ rejectEqualLastR c
+doParse ('=':n:c:rs) = contParse rs $ rejectEqualAtR (toDigit n) c
+doParse ('%':n:c:rs) = contParse rs $ rejectContainsR (toDigit n) c
+doParse ('Q':rs) = contParse rs $ rejectEqualsMemoryR
 
 doParse [] = return ()
 doParse xs = throwE $ "invalid input at: " ++ xs
 
 -- | Turns a Char into an Int using the Hashcat digit format
 toDigit :: Char -> Int
-toDigit c | c `elem` ['0'..'9'] = fromIntegral (toWord8 c - toWord8 '0')
-          | c `elem` ['A'..'Z'] = fromIntegral (toWord8 c - toWord8 'A') + 10
-          | otherwise           = error ("Invalid digit character: " ++ [c])
+toDigit c
+    | c `elem` ['0'..'9'] = fromIntegral (toWord8 c - toWord8 '0')
+    | c `elem` ['A'..'Z'] = fromIntegral (toWord8 c - toWord8 'A') + 10
+    | otherwise           = error ("Invalid digit character: " ++ [c])
+    where toWord8 = fromIntegral . ord
