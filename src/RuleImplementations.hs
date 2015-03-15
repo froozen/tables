@@ -28,7 +28,7 @@ uppercaseR :: Rule ()
 uppercaseR = liftR $ fmap toUpper
 
 capitalizeR :: Rule ()
-capitalizeR = liftR $ capitalize
+capitalizeR = rejectGreaterR 1 >> (liftR $ capitalize)
 
 -- | Capitalizes the first Char and lowers the rest
 capitalize :: String -> String
@@ -51,7 +51,7 @@ toggleCaseR :: Rule ()
 toggleCaseR = liftR $ fmap toggle
 
 toggleR :: (Integral a) => a -> Rule ()
-toggleR n = liftR $ applyAt n toggle
+toggleR n = rejectGreaterR (n+1) >> (liftR $ applyAt n toggle)
 
 reverseR :: Rule ()
 reverseR = liftR reverse
@@ -67,27 +67,14 @@ reflectR = liftR reflect
     where reflect s = s ++ (reverse s)
 
 rotateLeftR :: Rule ()
-rotateLeftR = liftR rotateLeft
+rotateLeftR = rejectGreaterR 2 >> liftR rotateLeft
     where rotateLeft [] = []
-          rotateLeft s  = safeTail s ++ [head s]
-
--- | A safe implementation of tail that, instead of failing, returns an empty
---   list if the specified list is empty
-safeTail :: [a] -> [a]
-safeTail [] = []
-safeTail (x:xs) = xs
+          rotateLeft s  = tail s ++ [head s]
 
 rotateRightR :: Rule ()
-rotateRightR = liftR rotateRight
+rotateRightR = rejectGreaterR 2 >> liftR rotateRight
     where rotateRight [] = []
-          rotateRight s  = last s : safeInit s
-
--- | A safe implementation of init that, instead of failing, returns an empty
---   list if the specified list is empty
-safeInit :: [a] -> [a]
-safeInit [] = []
-safeInit (x:[]) = []
-safeInit (x:xs) = x:safeInit xs
+          rotateRight s  = last s : init s
 
 appendCharacterR :: Char -> Rule ()
 appendCharacterR c = liftR $ (++ [c])
@@ -96,24 +83,24 @@ prependCharacterR :: Char -> Rule ()
 prependCharacterR c = liftR $ (c:)
 
 truncateLeftR :: Rule ()
-truncateLeftR = liftR $ safeTail
+truncateLeftR = rejectGreaterR 1 >> liftR tail
 
 truncateRightR :: Rule ()
-truncateRightR = liftR $ safeInit
+truncateRightR = rejectGreaterR 1 >> liftR init
 
 deleteNR :: (Integral a) => a -> Rule ()
-deleteNR n = liftR $ remove n
+deleteNR n = rejectGreaterR (n+1) >> (liftR $ remove n)
 
 -- | Removes the element at a specified index from a list
 remove :: (Integral a) => a -> [b] -> [b]
 remove n s
     | n `fits` genericLength s =
         let (xs, ys) = genericSplitAt n s
-        in xs ++ (safeTail ys)
+        in xs ++ (tail ys)
     | otherwise = s
 
 deleteRangeR :: (Integral a) => a -> a -> Rule ()
-deleteRangeR n m = liftR $ removeRange n m
+deleteRangeR n m = rejectGreaterR (n+m) >> (liftR $ removeRange n m)
 
 -- | Removes the elements at a specified range from a list
 removeRange :: (Integral a) => a -> a -> [b] -> [b]
@@ -123,7 +110,7 @@ removeRange n m s | n < m     = repeatRemove n (m - n) s
           repeatRemove x n s = remove x $ repeatRemove x (n - 1) s
 
 insertR :: (Integral a) => a -> Char -> Rule ()
-insertR n c = liftR $ insertAt n c
+insertR n c = rejectGreaterR (n+1) >> (liftR $ insertAt n c)
 
 -- | Inserts an element at a specified index of a list
 insertAt :: (Integral a) => a -> b -> [b] -> [b]
@@ -132,10 +119,10 @@ insertAt _ _ []     = []
 insertAt n b (x:xs) = x : insertAt (n - 1) b xs
 
 overwriteNR :: (Integral a) => a -> Char -> Rule ()
-overwriteNR n c = liftR $ applyAt n $ const c
+overwriteNR n c = rejectGreaterR (n+1) >> (liftR $ applyAt n $ const c)
 
 truncateNR :: (Integral a) => a -> Rule ()
-truncateNR n = liftR $ genericTake n
+truncateNR n = rejectGreaterR (n+1) >> (liftR $ genericTake n)
 
 replaceR :: Char -> Char -> Rule ()
 replaceR x y = liftR $ replace x y
@@ -148,12 +135,12 @@ purgeR :: Char -> Rule ()
 purgeR c = liftR $ filter (== c)
 
 duplicateFirstR :: (Integral a) => a -> Rule ()
-duplicateFirstR n = liftR $ duplicateFirst n
+duplicateFirstR n = rejectGreaterR 1 >> (liftR $ duplicateFirst n)
     where duplicateFirst _ [] = []
           duplicateFirst n xs = genericReplicate n (head xs) ++ xs
 
 duplicateLastR :: (Integral a) => a -> Rule ()
-duplicateLastR n = liftR $ duplicateLast n
+duplicateLastR n = rejectGreaterR 1 >> (liftR $ duplicateLast n)
     where duplicateLast _ [] = []
           duplicateLast n xs = xs ++ (genericReplicate n (last xs))
 
@@ -161,11 +148,14 @@ duplicateAllR :: Rule ()
 duplicateAllR = liftR $ concat . map (replicate 2)
 
 extractMemoryR :: (Integral a) => a -> a -> a -> Rule ()
-extractMemoryR n m i = modify $ \s -> s { result = extract (stored s) (result s) }
+extractMemoryR n m i = rejectGreaterR (i+1) >> rejectSmallMemory >>
+        (modify $ \s -> s { result = extract (stored s) (result s) })
     where extract mem s = begin s ++ inserted mem ++ end s
           begin s = genericTake i s
           inserted mem = genericTake m . genericDrop n $ mem
           end s = genericDrop i s
+          rejectSmallMemory = guardR $ memoryGuard (n+m)
+            where memoryGuard n s = (genericLength . stored $ s) >= n
 
 appendMemoryR :: Rule ()
 appendMemoryR = modify $ \s -> s { result = result s ++ stored s }
@@ -180,7 +170,7 @@ memorizeR = do
     put s { stored = result s, result = original }
 
 swapFrontR :: Rule ()
-swapFrontR = liftR $ swap 0 1
+swapFrontR = rejectGreaterR 2 >> (liftR $ swap 0 1)
 
 -- | Swaps the elements at the specified indexes of a list
 swap :: (Integral a) => a -> a -> [b] -> [b]
@@ -191,14 +181,15 @@ swap n m s
     | otherwise = s
 
 swapBackR :: Rule ()
-swapBackR = liftR $ swapBack
+swapBackR = rejectGreaterR 2 >> (liftR $ swapBack)
     where swapBack s = swap (length s - 2) (length s - 1) s
 
 swapNR :: (Integral a) => a -> a -> Rule ()
 swapNR x y = liftR $ swap x y
 
 bitShiftLeftR :: (Integral a) => a -> Rule ()
-bitShiftLeftR n = liftR $ applyAt n $ modifyWord8 (`shift` 1)
+bitShiftLeftR n = rejectGreaterR (n+1) >>
+                  (liftR $ applyAt n $ modifyWord8 (`shift` 1))
 
 -- | A helper function for applying a function to the ASCII
 --   value of a Char
@@ -208,16 +199,19 @@ modifyWord8 f = fromWord8 . f . toWord8
           fromWord8 = chr . fromIntegral
 
 bitShiftRightR :: (Integral a) => a -> Rule ()
-bitShiftRightR n = liftR $ applyAt n $ modifyWord8 (`shiftR` 1)
+bitShiftRightR n = rejectGreaterR (n+1) >>
+                   (liftR $ applyAt n $ modifyWord8 (`shiftR` 1))
 
 asciiIncrementR :: (Integral a) => a -> Rule ()
-asciiIncrementR n = liftR $ applyAt n $ modifyWord8 (+1)
+asciiIncrementR n = rejectGreaterR (n+1) >>
+                    (liftR $ applyAt n $ modifyWord8 (+1))
 
 asciiDecrementR :: (Integral a) => a -> Rule ()
-asciiDecrementR n = liftR $ applyAt n $ modifyWord8 (+ (-1))
+asciiDecrementR n = rejectGreaterR (n+1) >>
+                    (liftR $ applyAt n $ modifyWord8 (+ (-1)))
 
 replaceNPlusR :: (Integral a) => a -> Rule ()
-replaceNPlusR n = liftR $ snatch n 1
+replaceNPlusR n = rejectGreaterR (n+1) >> (liftR $ snatch n 1)
 
 -- | Replaces the element at a specified index with the element at a specified
 --   relative index in a list
@@ -236,14 +230,14 @@ inRange :: (Ord a) => a -> (a, a) -> Bool
 a `inRange` (b, c) = a >= b && a <= c
 
 replaceNMinusR :: (Integral a) => a -> Rule ()
-replaceNMinusR n = liftR $ snatch n (-1)
+replaceNMinusR n = rejectGreaterR (n+1) >> (liftR $ snatch n (-1))
 
 duplicateBlockFrontR :: (Integral a) => a -> Rule ()
-duplicateBlockFrontR n = liftR $ duplicateBlockFront n
+duplicateBlockFrontR n = rejectGreaterR (n+1) >> (liftR $ duplicateBlockFront n)
     where duplicateBlockFront n s = genericTake n s ++ s
 
 duplicateBlockBackR :: (Integral a) => a -> Rule ()
-duplicateBlockBackR n = liftR $ duplicateBlockBack n
+duplicateBlockBackR n = rejectGreaterR (n+1) >> (liftR $ duplicateBlockBack n)
     where duplicateBlockBack n s = s ++ (reverse . genericTake n . reverse $ s)
 
 titleR :: Rule ()
