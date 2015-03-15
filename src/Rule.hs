@@ -45,7 +45,7 @@ instance Monoid (Rule ()) where
 -- | Apply a rule to a String
 applyRule :: Rule a -> String -> Maybe String
 applyRule r s = evalState (runReaderT (runMaybeT . runRule $ r >> extract) s) $ RuleState s s
-    where extract = gets stored
+    where extract = gets result
 
 -- | Lift a (String -> String) function to a Rule
 liftR :: (String -> String) -> Rule ()
