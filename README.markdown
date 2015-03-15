@@ -2,8 +2,9 @@ tables
 ======
 tables is a primitive, naive MD5 lookup table generator.
 
-The generated table is saved onto disk in a directory tree. This means, that the plaintext to the hash
-`64e88b02ad08079e342d827715ab4eca` would be in the file
+The table is saved onto disk as a directory structure. This means, that the
+plaintext corresponding to the hash `64e88b02ad08079e342d827715ab4eca`
+would be in the file located at
 `tree/6/4/e/8/8/b/0/2/a/d/0/8/0/7/9/e/3/4/2/d/8/2/7/7/1/5/a/b/4/e/c/a`.
 
 ## Usage
@@ -20,7 +21,7 @@ To generate the table, simply run:
 ```
 
 ### Doing a lookup operation
-To look up hashes in a table, run:
+To look up a file of hashes in a table, run:
 ```
 ./tables lookup path/to/hashes path/to/tree/toplevel
 ```
